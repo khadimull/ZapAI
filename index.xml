@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE html>
+<html b:css='false' b:defaultwidgetversion='2' b:layoutsversion='3' xmlns='http://www.w3.org/1999/xhtml' xmlns:b='http://www.google.com/2005/gml/b' xmlns:data='http://www.google.com/2005/gml/data' xmlns:expr='http://www.google.com/2005/gml/expr'>
+<head>
+    <meta content='width=device-width, initial-scale=1' name='viewport'/>
+    <title><data:blog.title/></title>
+    <b:skin><![CDATA[
+        /* Minimalist CSS for AI Agent Interface */
+        body { font-family: 'Inter', sans-serif; background: #f4f7f6; margin: 0; padding: 0; }
+        #ai-agent-container { max-width: 800px; margin: 50px auto; background: #fff; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); overflow: hidden; display: flex; flex-direction: column; height: 80vh; }
+        
+        /* Header */
+        .agent-header { background: #1a73e8; color: white; padding: 20px; display: flex; justify-content: space-between; align-items: center; }
+        .status-pill { background: #34a853; font-size: 12px; padding: 4px 12px; border-radius: 20px; }
+
+        /* Chat Window */
+        #chat-window { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
+        .msg { max-width: 80%; padding: 12px 16px; border-radius: 18px; line-height: 1.5; }
+        .msg.user { align-self: flex-end; background: #e3f2fd; color: #1565c0; }
+        .msg.bot { align-self: flex-start; background: #f1f3f4; color: #3c4043; }
+        .msg.system { align-self: center; font-size: 11px; color: #70757a; text-transform: uppercase; }
+
+        /* Input Area */
+        .input-area { border-top: 1px solid #eee; padding: 20px; display: flex; gap: 10px; }
+        input#user-input { flex: 1; border: 1px solid #ddd; padding: 12px; border-radius: 8px; outline: none; }
+        button#send-btn { background: #1a73e8; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; transition: 0.3s; }
+        button#send-btn:hover { background: #1557b0; }
+
+        /* Tool Indicators */
+        .tool-tag { font-size: 10px; font-weight: bold; margin-top: 5px; display: block; color: #1a73e8; }
+    ]]></b:skin>
+</head>
+
+<body>
+    <div id='ai-agent-container'>
+        <div class='agent-header'>
+            <div>
+                <h2 style='margin:0'>Zapier MCP Agent</h2>
+                <small>Connected to GitHub, Gmail, Sheets</small>
+            </div>
+            <span class='status-pill'>Active</span>
+        </div>
+
+        <div id='chat-window'>
+            <div class='msg system'>Agent Initialized with Zapier Tools</div>
+            <div class='msg bot'>Hello! I can manage your GitHub repos, draft Gmails, or update Sheets via Zapier. How can I help?</div>
+        </div>
+
+        <div class='input-area'>
+            <input id='user-input' placeholder='Type a command (e.g., &quot;Summarize my last 3 Gmails&quot;)...' type='text'/>
+            <button id='send-btn' onclick='sendMessage()'>Execute</button>
+        </div>
+    </div>
+
+    <b:section id='main' showaddelement='yes'/>
+
+    <script>
+        // CONFIGURATION: Replace with your actual proxy/middleware URL
+       const PROXY_ENDPOINT = &quot;https://zap-ai-1zcd.vercel.app/api/agent&quot;;
+
+        async function sendMessage() {
+            const inputField = document.getElementById(&#39;user-input&#39;);
+            const chatWindow = document.getElementById(&#39;chat-window&#39;);
+            const query = inputField.value.trim();
+
+            if (!query) return;
+
+            // Add User Message
+            appendMessage(query, &#39;user&#39;);
+            inputField.value = &#39;&#39;;
+
+            // Add Thinking Placeholder
+            const thinkingId = &#39;think-&#39; + Date.now();
+            appendMessage(&quot;Interfacing with Zapier MCP...&quot;, &#39;bot&#39;, thinkingId);
+
+            try {
+                const response = await fetch(PROXY_ENDPOINT, {
+                    method: &#39;POST&#39;,
+                    headers: { &#39;Content-Type&#39;: &#39;application/json&#39; },
+                    body: JSON.stringify({ 
+                        prompt: query,
+                        tools: [&quot;github&quot;, &quot;gmail&quot;, &quot;sheets&quot;, &quot;docs&quot;, &quot;rss&quot;] 
+                    })
+                });
+
+                const data = await response.json();
+                
+                // Remove thinking message and add actual response
+                document.getElementById(thinkingId).remove();
+                appendMessage(data.output, &#39;bot&#39;, null, data.toolUsed);
+
+            } catch (error) {
+                document.getElementById(thinkingId).innerText = &quot;Error: Could not connect to the MCP server.&quot;;
+            }
+        }
+
+        function appendMessage(text, type, id = null, tool = null) {
+            const chatWindow = document.getElementById(&#39;chat-window&#39;);
+            const msgDiv = document.createElement(&#39;div&#39;);
+            msgDiv.className = `msg ${type}`;
+            if (id) msgDiv.id = id;
+            
+            let content = text;
+            if (tool) {
+                content += `<span class='tool-tag'>Used Tool: ${tool}</span>`;
+            }
+            
+            msgDiv.innerHTML = content;
+            chatWindow.appendChild(msgDiv);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+
+        // Allow &#39;Enter&#39; key to send
+        document.getElementById(&#39;user-input&#39;).addEventListener(&#39;keypress&#39;, function (e) {
+            if (e.key === &#39;Enter&#39;) sendMessage();
+        });
+    </script>
+</body>
+</html>
