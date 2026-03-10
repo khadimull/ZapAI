@@ -37,7 +37,7 @@ export default async function handler(req, res) {
 
     // Agent Execution
     const response = await openai.beta.responses.create({
-      model: "gpt-5.4", 
+      model: "gpt-4o", 
       conversation_id: conversation.id,
       input: [{ role: "user", content: prompt }],
       tools: [{
