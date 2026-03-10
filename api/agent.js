@@ -1,8 +1,8 @@
-// /api/agent.js (Vercel Serverless Function)
-const axios = require('axios');
+// /api/agent.js
+const { OpenAI } = require('openai');
 
 export default async function handler(req, res) {
-    // 1. Set CORS headers so your Blogger site can talk to this API
+    // 1. Setup CORS for Blogger
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -10,32 +10,44 @@ export default async function handler(req, res) {
     if (req.method === 'OPTIONS') return res.status(200).end();
 
     const { prompt } = req.body;
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
     try {
-        // 2. Forward the request to Zapier Central / MCP
-        // You need an API Key from your Zapier Central Dashboard
-        const zapierResponse = await axios.post(
-            'https://central.zapier.com/api/v1/assistant/YOUR_ASSISTANT_ID/chat', 
-            {
-                input: prompt,
-                stream: false
-            },
-            {
-                headers: {
-                    'Authorization': `Bearer ${process.env.ZAPIER_API_KEY}`,
-                    'Content-Type': 'application/json'
+        /* 2. Execute using the Responses API with MCP Tools.
+           The model GPT-4.1 is optimized for this direct protocol.
+        */
+        const response = await openai.responses.create({
+            model: "gpt-4.1",
+            tools: [
+                {
+                    type: "mcp",
+                    server_label: "zapier-tools",
+                    server_url: process.env.ZAPIER_MCP_URL, 
+                    headers: {
+                        "Authorization": `Bearer ${process.env.ZAPIER_API_KEY}`
+                    },
+                    require_approval: "never" // Set to "always" for sensitive GitHub/Gmail actions
                 }
-            }
-        );
+            ],
+            input: prompt
+        });
 
-        // 3. Return the AI's response + metadata to Blogger
+        // 3. Extract the final text output and tool logs
+        const outputText = response.output_text;
+        const toolLogs = response.output.filter(item => item.type === 'mcp_tool_call')
+                                       .map(tool => tool.name)
+                                       .join(', ');
+
         return res.status(200).json({
-            output: zapierResponse.data.output,
-            toolUsed: zapierResponse.data.actions_taken || "General AI"
+            output: outputText,
+            toolUsed: toolLogs || "AI Brain"
         });
 
     } catch (error) {
-        console.error(error);
-        return res.status(500).json({ output: "Agent connection failed. Check logs." });
+        console.error("Agent Error:", error);
+        return res.status(500).json({ 
+            output: "System Error: The agent could not reach the MCP server. Check your environment variables.",
+            error: error.message 
+        });
     }
 }
