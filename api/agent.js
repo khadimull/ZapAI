@@ -1,53 +1,88 @@
-// /api/agent.js
-const { OpenAI } = require('openai');
+// /api/agent.js — Claude claude-sonnet-4-20250514 with Zapier MCP + Conversation Memory
+import Anthropic from "@anthropic-ai/sdk";
+
+const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+// In-memory session store (use Redis/DB for production multi-user deployments)
+const sessions = new Map();
+
+const SYSTEM_PROMPT = `You are a helpful AI agent connected to Zapier tools for GitHub, Gmail, Google Sheets, and Google Docs.
+You can execute real actions on behalf of the user. Always confirm what you've done clearly and concisely.
+When using tools, explain which tool you're invoking and why before doing so.`;
 
 export default async function handler(req, res) {
-    // 1. Setup CORS for Blogger
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    // CORS for Blogger / external frontends
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-    if (req.method === 'OPTIONS') return res.status(200).end();
+    if (req.method === "OPTIONS") return res.status(200).end();
+    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-    const { prompt } = req.body;
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const { prompt, sessionId = "default" } = req.body;
+    if (!prompt) return res.status(400).json({ error: "Missing prompt" });
+
+    // ── Retrieve or initialise conversation history for this session ──
+    if (!sessions.has(sessionId)) {
+        sessions.set(sessionId, []);
+    }
+    const history = sessions.get(sessionId);
+
+    // Append new user turn
+    history.push({ role: "user", content: prompt });
 
     try {
-        /* 2. Execute using the Responses API with MCP Tools.
-           The model GPT-4.1 is optimized for this direct protocol.
-        */
-        const response = await openai.responses.create({
-            model: "gpt-4.1",
+        const response = await client.beta.messages.create({
+            model: "claude-sonnet-4-20250514",
+            max_tokens: 1024,
+            system: SYSTEM_PROMPT,
+            messages: history,
             tools: [
                 {
                     type: "mcp",
+                    // Zapier MCP server — exposes GitHub, Gmail, Sheets, Docs, RSS actions
                     server_label: "zapier-tools",
-                    server_url: process.env.ZAPIER_MCP_URL, 
+                    server_url: process.env.ZAPIER_MCP_URL,
                     headers: {
-                        "Authorization": `Bearer ${process.env.ZAPIER_API_KEY}`
+                        Authorization: `Bearer ${process.env.ZAPIER_API_KEY}`,
                     },
-                    require_approval: "never" // Set to "always" for sensitive GitHub/Gmail actions
-                }
+                    require_approval: "never", // set "always" for sensitive write actions
+                },
             ],
-            input: prompt
+            betas: ["mcp-client-2025-04-04"],
         });
 
-        // 3. Extract the final text output and tool logs
-        const outputText = response.output_text;
-        const toolLogs = response.output.filter(item => item.type === 'mcp_tool_call')
-                                       .map(tool => tool.name)
-                                       .join(', ');
+        // Extract the assistant reply text
+        const assistantText = response.content
+            .filter((block) => block.type === "text")
+            .map((block) => block.text)
+            .join("\n");
+
+        // Identify which MCP tools were called
+        const toolsUsed = response.content
+            .filter((block) => block.type === "tool_use")
+            .map((block) => block.name)
+            .join(", ");
+
+        // Persist assistant reply into conversation history
+        history.push({ role: "assistant", content: response.content });
+
+        // Keep session history bounded (last 40 turns = 20 exchanges)
+        if (history.length > 40) {
+            sessions.set(sessionId, history.slice(-40));
+        }
 
         return res.status(200).json({
-            output: outputText,
-            toolUsed: toolLogs || "AI Brain"
+            output: assistantText,
+            toolUsed: toolsUsed || "Claude Brain",
+            sessionId,
+            turns: history.length,
         });
-
     } catch (error) {
         console.error("Agent Error:", error);
-        return res.status(500).json({ 
-            output: "System Error: The agent could not reach the MCP server. Check your environment variables.",
-            error: error.message 
+        return res.status(500).json({
+            output: "System Error: Could not reach the Claude API or MCP server. Check your environment variables.",
+            error: error.message,
         });
     }
 }
