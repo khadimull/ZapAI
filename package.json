@@ -1,7 +1,9 @@
 {
   "name": "zapier-mcp-middleware",
-  "version": "1.0.0",
+  "version": "5.4.0",
+  "description": "Claude claude-sonnet-4-20250514 + Zapier MCP middleware with conversation memory",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
     "axios": "^1.6.0"
   }
 }
