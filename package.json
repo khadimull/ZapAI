@@ -1,10 +1,7 @@
 {
   "name": "zapier-mcp-middleware",
-  "version": "1.4.0",
-  "type": "module",
-  "main": "api/agent.js",
+  "version": "1.0.0",
   "dependencies": {
-    "openai": "5.4.0",
-    "axios": "1.7.2"
+    "axios": "^1.6.0"
   }
 }
