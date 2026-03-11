@@ -4,7 +4,7 @@
   "type": "module",
   "main": "api/agent.js",
   "dependencies": {
-    "openai": "4.28.0",
+    "openai": "5.4.0",
     "axios": "1.7.2"
   }
 }
