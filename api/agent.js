@@ -12,11 +12,11 @@ export default async function handler(req, res) {
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-5.4",
       messages: [
         {
           role: "system",
-          content: "You are a helpful assistant for the Kibrille brand with access to Gmail, GitHub, and Google Sheets via Zapier MCP tools."
+          content: "You are my personal assistant with access to Gmail, GitHub, and Google Sheets and docs among other tools via Zapier MCP tools."
         },
         ...messages
       ],
