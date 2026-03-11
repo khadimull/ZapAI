@@ -1,53 +1,65 @@
-// /api/agent.js
-const { OpenAI } = require('openai');
+// api/agent.js
+import OpenAI from 'openai';
 
 export default async function handler(req, res) {
-    // 1. Setup CORS for Blogger
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  // CORS Headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-    if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method === 'OPTIONS') return res.status(200).end();
 
-    const { prompt } = req.body;
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const { prompt, conversation_id } = req.body;
+  const openai = new OpenAI({ 
+    apiKey: process.env.OPENAI_API_KEY,
+    defaultHeaders: { "OpenAI-Beta": "conversations-2026-03-05" } 
+  });
 
-    try {
-        /* 2. Execute using the Responses API with MCP Tools.
-           The model GPT-4.1 is optimized for this direct protocol.
-        */
-        const response = await openai.responses.create({
-            model: "gpt-4.1",
-            tools: [
-                {
-                    type: "mcp",
-                    server_label: "zapier-tools",
-                    server_url: process.env.ZAPIER_MCP_URL, 
-                    headers: {
-                        "Authorization": `Bearer ${process.env.ZAPIER_API_KEY}`
-                    },
-                    require_approval: "never" // Set to "always" for sensitive GitHub/Gmail actions
-                }
-            ],
-            input: prompt
-        });
+  try {
+    let conversation;
 
-        // 3. Extract the final text output and tool logs
-        const outputText = response.output_text;
-        const toolLogs = response.output.filter(item => item.type === 'mcp_tool_call')
-                                       .map(tool => tool.name)
-                                       .join(', ');
+    // FIX: Catch literal "null" or "undefined" strings from the browser
+    const isValidId = conversation_id && 
+                      conversation_id !== "null" && 
+                      conversation_id !== "undefined" && 
+                      conversation_id.trim() !== "";
 
-        return res.status(200).json({
-            output: outputText,
-            toolUsed: toolLogs || "AI Brain"
-        });
-
-    } catch (error) {
-        console.error("Agent Error:", error);
-        return res.status(500).json({ 
-            output: "System Error: The agent could not reach the MCP server. Check your environment variables.",
-            error: error.message 
-        });
+    if (isValidId) {
+      try {
+        conversation = await openai.beta.conversations.retrieve(conversation_id);
+      } catch (e) {
+        // Fallback if the ID expired or is invalid
+        conversation = await openai.beta.conversations.create({});
+      }
+    } else {
+      conversation = await openai.beta.conversations.create({});
     }
+
+    // Agent Execution
+    const response = await openai.beta.responses.create({
+      model: "gpt-5.4", 
+      conversation_id: conversation.id,
+      input: [{ role: "user", content: prompt }],
+      tools: [{
+        type: "mcp",
+        server_label: "zapier-suite",
+        server_url: "https://mcp.zapier.com/api/v1/connect",
+        require_approval: "never", 
+        headers: { "Authorization": `Bearer ${process.env.ZAPIER_API_KEY}` }
+      }]
+    });
+
+    return res.status(200).json({
+      output: response.choices[0].message.content,
+      conversation_id: conversation.id, 
+      toolUsed: response.usage_metadata?.tools_called?.[0]?.name || "GPT-5.4 Brain"
+    });
+
+  } catch (error) {
+    console.error("Agent Error:", error.message);
+    return res.status(200).json({ 
+      output: `System Alert: ${error.message}. Ensure your OpenAI account has Tier 2 credits.`,
+      conversation_id: null 
+    });
+  }
 }
