@@ -165,17 +165,18 @@
             </div>
             <div class='header-right'>
                 <span class='status-pill'>Active</span>
-                <button class='clear-btn' onclick='clearHistory()'>Clear</button>
+                <button class='clear-btn' onclick='resetMemory()' style='cursor:pointer;'>Clear Chat</button>
             </div>
         </div>
 
-        <div id='chat-window'>
+<div id='chat-window'>
             <div class='msg system'>Claude Sonnet 4 &#183; Memory active &#183; Zapier MCP ready</div>
             <div class='msg bot'>Hello! I&#39;m Claude, made by Anthropic. I can answer questions directly from my own knowledge, and connect to Gmail, GitHub, and Sheets via Zapier when you need it. What can I help with?</div>
         </div>
 
         <div class='input-area'>
             <textarea id='user-input' placeholder='Ask me anything...' rows='1'/>
+
             <button id='send-btn' onclick='sendMessage()' title='Send'>
                 <svg fill='none' height='20' stroke='currentColor' stroke-linecap='round' stroke-linejoin='round' stroke-width='2.5' viewBox='0 0 24 24' width='20' xmlns='http://www.w3.org/2000/svg'><line x1='22' x2='11' y1='2' y2='13'/><polygon points='22 2 15 22 11 13 2 9 22 2'/></svg>
             </button>
@@ -185,18 +186,16 @@
     <b:section id='main' showaddelement='yes'/>
 
 <script>
-// CONFIGURATION
-const PROXY_ENDPOINT = &quot;https://zap-ai-1zcd.vercel.app/api/agent&quot;;
+//<![CDATA[
 
-// Load memory from the browser or start fresh
-let chatHistory = JSON.parse(localStorage.getItem(&#39;agent_chat_history&#39;)) || [];
+const PROXY_ENDPOINT = "https://zap-ai-1zcd.vercel.app/api/agent";
+let chatHistory = JSON.parse(localStorage.getItem('agent_chat_history')) || [];
 
-// 1. HELPER FUNCTION (This was missing!)
 function appendMessage(text, type, id = null, tool = null) {
-    const chatWindow = document.getElementById(&#39;chat-window&#39;);
-    if (!chatWindow) return; // Safety check
+    const chatWindow = document.getElementById('chat-window');
+    if (!chatWindow) return;
     
-    const msgDiv = document.createElement(&#39;div&#39;);
+    const msgDiv = document.createElement('div');
     msgDiv.className = `msg ${type}`;
     if (id) msgDiv.id = id;
     
@@ -210,84 +209,79 @@ function appendMessage(text, type, id = null, tool = null) {
     chatWindow.scrollTop = chatWindow.scrollHeight;
 }
 
-// 2. LOAD HISTORY ON REFRESH
-document.addEventListener(&quot;DOMContentLoaded&quot;, function() {
-    chatHistory.forEach(msg =&gt; {
-        // Only show text messages (hide system instructions and raw tool data)
-        if (msg.role === &#39;user&#39;) {
-            appendMessage(msg.content, &#39;user&#39;);
-        } else if (msg.role === &#39;assistant&#39; &amp;&amp; msg.content) {
-            appendMessage(msg.content, &#39;bot&#39;);
-        }
-    });
+// Load History immediately
+chatHistory.forEach(msg => {
+    if (msg.role === 'user') {
+        appendMessage(msg.content, 'user');
+    } else if (msg.role === 'assistant' && msg.content) {
+        appendMessage(msg.content, 'bot');
+    }
 });
 
-// 3. MAIN SEND FUNCTION
 async function sendMessage() {
-    const inputField = document.getElementById(&#39;user-input&#39;);
+    const inputField = document.getElementById('user-input');
     const query = inputField.value.trim();
     if (!query) return;
 
-    appendMessage(query, &#39;user&#39;);
-    inputField.value = &#39;&#39;;
+    appendMessage(query, 'user');
+    inputField.value = '';
 
-    // Add user message to local memory
-    chatHistory.push({ role: &quot;user&quot;, content: query });
+    chatHistory.push({ role: "user", content: query });
 
-    const thinkingId = &#39;think-&#39; + Date.now();
-    appendMessage(&quot;AI is thinking...&quot;, &#39;bot&#39;, thinkingId);
+    const thinkingId = 'think-' + Date.now();
+    appendMessage("AI is thinking...", 'bot', thinkingId);
 
     try {
-        // Send the ENTIRE history to Vercel
         const response = await fetch(PROXY_ENDPOINT, {
-            method: &#39;POST&#39;,
-            headers: { &#39;Content-Type&#39;: &#39;application/json&#39; },
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ messages: chatHistory })
         });
 
         const data = await response.json();
         
-        // Save the AI&#39;s response to memory
         if (data.newMessage) {
             chatHistory.push(data.newMessage);
-            localStorage.setItem(&#39;agent_chat_history&#39;, JSON.stringify(chatHistory));
+            localStorage.setItem('agent_chat_history', JSON.stringify(chatHistory));
         }
 
         const thinkingElement = document.getElementById(thinkingId);
         if (thinkingElement) thinkingElement.remove();
         
-        appendMessage(data.output, &#39;bot&#39;, null, data.toolUsed);
+        appendMessage(data.output, 'bot', null, data.toolUsed);
 
     } catch (error) {
         const thinkingElement = document.getElementById(thinkingId);
-        if (thinkingElement) thinkingElement.innerText = &quot;Error: Connection lost. Check Vercel logs.&quot;;
+        if (thinkingElement) thinkingElement.innerText = "Error: Connection lost. Check Vercel logs.";
     }
 }
 
 // 4. RESET FUNCTION
 function resetMemory() {
-    localStorage.removeItem(&#39;agent_chat_history&#39;);
+    // 1. Delete the memory from the browser
+    localStorage.removeItem('agent_chat_history');
+    
+    // 2. Clear the active array
     chatHistory = [];
-    const chatWindow = document.getElementById(&#39;chat-window&#39;);
-    if (chatWindow) chatWindow.innerHTML = &#39;&#39;; // Clear the screen
+    
+    // 3. Reload the page to bring back the default welcome message cleanly
+    location.reload();
 }
 
-// 5. ENTER BUTTON FIX
-document.addEventListener(&quot;DOMContentLoaded&quot;, function() {
-    const inputField = document.getElementById(&#39;user-input&#39;);
-    
-    if (inputField) {
-        inputField.addEventListener(&#39;keypress&#39;, function (e) {
-            // Check for both &#39;Enter&#39; key and keycode 13
-            if (e.key === &#39;Enter&#39; || e.keyCode === 13) {
-                e.preventDefault(); // Stops the page from accidentally reloading
-                sendMessage();
-            }
-        });
-    } else {
-        console.error(&quot;Could not find the user-input box. Check your HTML IDs.&quot;);
-    }
-});
+// Enter Button Fix - Bypassing DOMContentLoaded for immediate attachment
+const inputField = document.getElementById('user-input');
+if (inputField) {
+    inputField.addEventListener('keydown', function (e) {
+        if ((e.key === 'Enter' || e.keyCode === 13) && !e.shiftKey) {
+            e.preventDefault(); 
+            sendMessage();
+        }
+    });
+} else {
+    console.error("Could not find the user-input box. Check your HTML IDs.");
+}
+
+//]]>
 </script>
 </body>
 </html>
