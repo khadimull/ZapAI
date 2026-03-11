@@ -2,118 +2,254 @@
 <!DOCTYPE html>
 <html b:css='false' b:defaultwidgetversion='2' b:layoutsversion='3' xmlns='http://www.w3.org/1999/xhtml' xmlns:b='http://www.google.com/2005/gml/b' xmlns:data='http://www.google.com/2005/gml/data' xmlns:expr='http://www.google.com/2005/gml/expr'>
 <head>
-    <meta content='width=device-width, initial-scale=1' name='viewport'/>
+    <meta content='width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no' name='viewport'/>
     <title><data:blog.title/></title>
     <b:skin><![CDATA[
-        /* Minimalist CSS for AI Agent Interface */
-        body { font-family: 'Inter', sans-serif; background: #f4f7f6; margin: 0; padding: 0; }
-        #ai-agent-container { max-width: 800px; margin: 50px auto; background: #fff; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); overflow: hidden; display: flex; flex-direction: column; height: 80vh; }
-        
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f0f4f8;
+            height: 100dvh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #ai-agent-container {
+            width: 100%;
+            max-width: 820px;
+            background: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.12);
+            display: flex;
+            flex-direction: column;
+            height: 90dvh;
+            overflow: hidden;
+        }
+
         /* Header */
-        .agent-header { background: #1a73e8; color: white; padding: 20px; display: flex; justify-content: space-between; align-items: center; }
-        .status-pill { background: #34a853; font-size: 12px; padding: 4px 12px; border-radius: 20px; }
+        .agent-header {
+            background: linear-gradient(135deg, #1a73e8 0%, #0d5dbf 100%);
+            color: white;
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+            gap: 12px;
+        }
+        .header-left h2 { font-size: clamp(15px, 4vw, 19px); font-weight: 700; line-height: 1.2; }
+        .header-left small { font-size: clamp(10px, 2.8vw, 12px); opacity: 0.85; }
+        .header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
-        /* Chat Window */
-        #chat-window { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
-        .msg { max-width: 80%; padding: 12px 16px; border-radius: 18px; line-height: 1.5; }
-        .msg.user { align-self: flex-end; background: #e3f2fd; color: #1565c0; }
-        .msg.bot { align-self: flex-start; background: #f1f3f4; color: #3c4043; }
-        .msg.system { align-self: center; font-size: 11px; color: #70757a; text-transform: uppercase; }
+        .status-pill {
+            background: #34a853;
+            font-size: 11px; font-weight: 600;
+            padding: 4px 10px; border-radius: 20px;
+            white-space: nowrap;
+        }
+        .clear-btn {
+            background: rgba(255,255,255,0.2);
+            border: none; color: white;
+            font-size: 11px; font-weight: 600;
+            padding: 4px 10px; border-radius: 20px;
+            cursor: pointer; transition: background 0.2s;
+        }
+        .clear-btn:hover { background: rgba(255,255,255,0.35); }
 
-        /* Input Area */
-        .input-area { border-top: 1px solid #eee; padding: 20px; display: flex; gap: 10px; }
-        input#user-input { flex: 1; border: 1px solid #ddd; padding: 12px; border-radius: 8px; outline: none; }
-        button#send-btn { background: #1a73e8; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; transition: 0.3s; }
-        button#send-btn:hover { background: #1557b0; }
+        /* Chat */
+        #chat-window {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            -webkit-overflow-scrolling: touch;
+            scroll-behavior: smooth;
+        }
 
-        /* Tool Indicators */
-        .tool-tag { font-size: 10px; font-weight: bold; margin-top: 5px; display: block; color: #1a73e8; }
+        .msg {
+            max-width: 82%;
+            padding: 10px 14px;
+            border-radius: 18px;
+            font-size: clamp(13px, 3.5vw, 15px);
+            line-height: 1.55;
+            word-break: break-word;
+        }
+        .msg.user  { align-self: flex-end;   background: #dbeafe; color: #1e40af; border-bottom-right-radius: 4px; }
+        .msg.bot   { align-self: flex-start; background: #f1f3f4; color: #3c4043; border-bottom-left-radius: 4px; }
+        .msg.error { align-self: flex-start; background: #fce8e6; color: #c5221f; border-bottom-left-radius: 4px; }
+        .msg.system {
+            align-self: center; font-size: 10px; color: #9aa0a6;
+            text-transform: uppercase; letter-spacing: 0.06em;
+            background: none; padding: 4px 0;
+        }
+
+        /* Zapier badge — only shows on real integration calls */
+        .zapier-badge {
+            display: inline-block;
+            margin-top: 6px;
+            font-size: 10px; font-weight: 700;
+            color: #1a73e8;
+            letter-spacing: 0.03em;
+        }
+        .turn-info { display: block; margin-top: 3px; font-size: 9px; color: #bdc1c6; }
+
+        /* Typing dots */
+        .typing-dots span {
+            display: inline-block; width: 7px; height: 7px;
+            background: #9aa0a6; border-radius: 50%; margin: 0 2px;
+            animation: bounce 1.2s infinite;
+        }
+        .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes bounce {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-6px); }
+        }
+
+        /* Input */
+        .input-area {
+            border-top: 1px solid #e8eaed;
+            padding: 12px 14px;
+            display: flex; gap: 8px;
+            flex-shrink: 0; align-items: flex-end;
+            background: #fff;
+        }
+        #user-input {
+            flex: 1; border: 1.5px solid #dadce0;
+            padding: 10px 14px; border-radius: 24px;
+            outline: none; font-size: clamp(13px, 3.5vw, 15px);
+            font-family: inherit; resize: none;
+            max-height: 110px; line-height: 1.4;
+            transition: border-color 0.2s; -webkit-appearance: none;
+        }
+        #user-input:focus { border-color: #1a73e8; }
+        #send-btn {
+            background: #1a73e8; color: white; border: none;
+            width: 44px; height: 44px; border-radius: 50%;
+            cursor: pointer; font-size: 20px;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+            transition: background 0.2s, transform 0.1s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        #send-btn:hover  { background: #1557b0; }
+        #send-btn:active { transform: scale(0.92); }
+        #send-btn:disabled { background: #bdc1c6; cursor: not-allowed; }
+
+        /* Mobile */
+        @media (max-width: 600px) {
+            body { align-items: flex-end; background: #fff; }
+            #ai-agent-container { border-radius: 0; height: 100dvh; box-shadow: none; }
+            .agent-header { padding: 12px 14px; }
+            #chat-window { padding: 12px 10px; gap: 10px; }
+            .msg { max-width: 92%; }
+            .input-area { padding: 8px 10px 10px; }
+        }
+        /* Tablet */
+        @media (min-width: 601px) and (max-width: 900px) {
+            #ai-agent-container { margin: 16px; height: calc(100dvh - 32px); }
+        }
     ]]></b:skin>
 </head>
 
 <body>
     <div id='ai-agent-container'>
         <div class='agent-header'>
-            <div>
-                <h2 style='margin:0'>Zapier MCP Agent</h2>
-                <small>Connected to GitHub, Gmail, Sheets</small>
+            <div class='header-left'>
+                <h2>Zapier MCP Agent</h2>
+                <small>Claude Sonnet 4 &#183; GitHub &#183; Gmail &#183; Sheets</small>
             </div>
-            <span class='status-pill'>Active</span>
+            <div class='header-right'>
+                <span class='status-pill'>Active</span>
+                <button class='clear-btn' onclick='clearHistory()'>Clear</button>
+            </div>
         </div>
 
         <div id='chat-window'>
-            <div class='msg system'>Agent Initialized with Zapier Tools</div>
-            <div class='msg bot'>Hello! I can manage your GitHub repos, draft Gmails, or update Sheets via Zapier. How can I help?</div>
+            <div class='msg system'>Claude Sonnet 4 &#183; Memory active &#183; Zapier MCP ready</div>
+            <div class='msg bot'>Hello! I&#39;m Claude, made by Anthropic. I can answer questions directly from my own knowledge, and connect to Gmail, GitHub, and Sheets via Zapier when you need it. What can I help with?</div>
         </div>
 
         <div class='input-area'>
-            <input id='user-input' placeholder='Type a command (e.g., &quot;Summarize my last 3 Gmails&quot;)...' type='text'/>
-            <button id='send-btn' onclick='sendMessage()'>Execute</button>
+            <textarea id='user-input' placeholder='Ask me anything...' rows='1'/>
+            <button id='send-btn' onclick='sendMessage()' title='Send'>
+                <svg fill='none' height='20' stroke='currentColor' stroke-linecap='round' stroke-linejoin='round' stroke-width='2.5' viewBox='0 0 24 24' width='20' xmlns='http://www.w3.org/2000/svg'><line x1='22' x2='11' y1='2' y2='13'/><polygon points='22 2 15 22 11 13 2 9 22 2'/></svg>
+            </button>
         </div>
     </div>
 
     <b:section id='main' showaddelement='yes'/>
 
     <script>
-        // CONFIGURATION: Replace with your actual proxy/middleware URL
-       const PROXY_ENDPOINT = &quot;https://zap-ai-1zcd.vercel.app/api/agent&quot;;
+ 
+      // CONFIGURATION
+const PROXY_ENDPOINT = &quot;https://zap-ai-1zcd.vercel.app/api/agent&quot;;
 
-        async function sendMessage() {
-            const inputField = document.getElementById(&#39;user-input&#39;);
-            const chatWindow = document.getElementById(&#39;chat-window&#39;);
-            const query = inputField.value.trim();
+// Initial Memory Check: Prevents sending &quot;null&quot; as a string
+let conversationId = localStorage.getItem(&#39;agent_conversation_id&#39;);
+if (conversationId === &quot;null&quot; || conversationId === &quot;undefined&quot; || !conversationId) {
+    conversationId = null;
+}
 
-            if (!query) return;
+async function sendMessage() {
+    const inputField = document.getElementById(&#39;user-input&#39;);
+    const query = inputField.value.trim();
+    if (!query) return;
 
-            // Add User Message
-            appendMessage(query, &#39;user&#39;);
-            inputField.value = &#39;&#39;;
+    appendMessage(query, &#39;user&#39;);
+    inputField.value = &#39;&#39;;
 
-            // Add Thinking Placeholder
-            const thinkingId = &#39;think-&#39; + Date.now();
-            appendMessage(&quot;Interfacing with Zapier MCP...&quot;, &#39;bot&#39;, thinkingId);
+    const thinkingId = &#39;think-&#39; + Date.now();
+    appendMessage(&quot;GPT-5.4 is accessing memory...&quot;, &#39;bot&#39;, thinkingId);
 
-            try {
-                const response = await fetch(PROXY_ENDPOINT, {
-                    method: &#39;POST&#39;,
-                    headers: { &#39;Content-Type&#39;: &#39;application/json&#39; },
-                    body: JSON.stringify({ 
-                        prompt: query,
-                        tools: [&quot;github&quot;, &quot;gmail&quot;, &quot;sheets&quot;, &quot;docs&quot;, &quot;rss&quot;] 
-                    })
-                });
-
-                const data = await response.json();
-                
-                // Remove thinking message and add actual response
-                document.getElementById(thinkingId).remove();
-                appendMessage(data.output, &#39;bot&#39;, null, data.toolUsed);
-
-            } catch (error) {
-                document.getElementById(thinkingId).innerText = &quot;Error: Could not connect to the MCP server.&quot;;
-            }
-        }
-
-        function appendMessage(text, type, id = null, tool = null) {
-            const chatWindow = document.getElementById(&#39;chat-window&#39;);
-            const msgDiv = document.createElement(&#39;div&#39;);
-            msgDiv.className = `msg ${type}`;
-            if (id) msgDiv.id = id;
-            
-            let content = text;
-            if (tool) {
-                content += `<span class='tool-tag'>Used Tool: ${tool}</span>`;
-            }
-            
-            msgDiv.innerHTML = content;
-            chatWindow.appendChild(msgDiv);
-            chatWindow.scrollTop = chatWindow.scrollHeight;
-        }
-
-        // Allow &#39;Enter&#39; key to send
-        document.getElementById(&#39;user-input&#39;).addEventListener(&#39;keypress&#39;, function (e) {
-            if (e.key === &#39;Enter&#39;) sendMessage();
+    try {
+        const response = await fetch(PROXY_ENDPOINT, {
+            method: &#39;POST&#39;,
+            headers: { &#39;Content-Type&#39;: &#39;application/json&#39; },
+            body: JSON.stringify({ 
+                prompt: query,
+                conversation_id: conversationId 
+            })
         });
+
+        const data = await response.json();
+        
+        // Update Memory ID
+        if (data.conversation_id) {
+            conversationId = data.conversation_id;
+            localStorage.setItem(&#39;agent_conversation_id&#39;, conversationId);
+        }
+
+        const thinkingElement = document.getElementById(thinkingId);
+        if (thinkingElement) thinkingElement.remove();
+        
+        appendMessage(data.output, &#39;bot&#39;, null, data.toolUsed);
+
+    } catch (error) {
+        const thinkingElement = document.getElementById(thinkingId);
+        if (thinkingElement) thinkingElement.innerText = &quot;Error: Check Vercel logs.&quot;;
+    }
+}
+
+function appendMessage(text, type, id = null, tool = null) {
+    const chatWindow = document.getElementById(&#39;chat-window&#39;);
+    const msgDiv = document.createElement(&#39;div&#39;);
+    msgDiv.className = `msg ${type}`;
+    if (id) msgDiv.id = id;
+    let content = text;
+    if (tool) content += `<br/><small style='color:#1a73e8'><b>Tool:</b> ${tool}</small>`;
+    msgDiv.innerHTML = content;
+    chatWindow.appendChild(msgDiv);
+    chatWindow.scrollTop = chatWindow.scrollHeight;
+}
+
+document.getElementById(&#39;user-input&#39;).addEventListener(&#39;keypress&#39;, (e) =&gt; {
+    if (e.key === &#39;Enter&#39;) sendMessage();
+});
     </script>
 </body>
 </html>
