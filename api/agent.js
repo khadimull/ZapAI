@@ -1,8 +1,6 @@
 // api/agent.js
 import OpenAI from 'openai';
 
-const conversationHistory = new Map();
-
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -11,58 +9,54 @@ export default async function handler(req, res) {
 
   const { prompt, conversation_id } = req.body;
 
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  // 1. Initialize with the 2026 Beta Headers required for GPT-5.4
+  const openai = new OpenAI({ 
+    apiKey: process.env.OPENAI_API_KEY,
+    defaultHeaders: { "OpenAI-Beta": "conversations-2026-03-05" } 
+  });
 
   try {
-    // Build conversation history
-    const isValidId = conversation_id &&
-                      conversation_id !== "null" &&
-                      conversation_id !== "undefined" &&
+    let conversation;
+
+    // 2. Validate ID from Blogger
+    const isValidId = conversation_id && 
+                      conversation_id !== "null" && 
+                      conversation_id !== "undefined" && 
                       conversation_id.trim() !== "";
 
-    const convId = isValidId ? conversation_id : `conv_${Date.now()}`;
-    const messages = conversationHistory.get(convId) || [];
+    // 3. Durable Memory: Retrieve or Create thread on OpenAI's servers
+    if (isValidId) {
+      try {
+        conversation = await openai.beta.conversations.retrieve(conversation_id);
+      } catch (e) {
+        conversation = await openai.beta.conversations.create({});
+      }
+    } else {
+      conversation = await openai.beta.conversations.create({});
+    }
 
-    messages.push({ role: "user", content: prompt });
-
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content: "You are a helpful agent with access to Gmail, GitHub, and Google Sheets via Zapier MCP tools."
-        },
-        ...messages
-      ],
+    // 4. Execute GPT-5.4 with native MCP Tooling
+    const response = await openai.beta.responses.create({
+      model: "gpt-5.4",
+      conversation_id: conversation.id,
+      input: [{ role: "user", content: prompt }],
       tools: [{
-        type: "function",
-        function: {
-          name: "zapier_mcp",
-          description: "Execute Zapier MCP actions for Gmail, GitHub, and Sheets",
-          parameters: {
-            type: "object",
-            properties: {
-              action: { type: "string", description: "The Zapier action to execute" },
-              params: { type: "object", description: "Parameters for the action" }
-            },
-            required: ["action"]
-          }
-        }
+        type: "mcp",
+        server_label: "zapier-suite",
+        server_url: "https://mcp.zapier.com/api/v1/connect",
+        require_approval: "never",
+        headers: { "Authorization": `Bearer ${process.env.ZAPIER_API_KEY}` }
       }]
     });
 
-    const assistantMessage = response.choices[0].message;
-    messages.push(assistantMessage);
-    conversationHistory.set(convId, messages);
-
-    const outputText = assistantMessage.content || 
-      (assistantMessage.tool_calls ? "Executing Zapier action..." : "No response");
-    const toolUsed = assistantMessage.tool_calls?.[0]?.function?.name || "GPT-4o Brain";
+    // 5. Parse the 2026 response structure
+    const outputText = response.choices[0].message.content;
+    const toolUsed = response.usage_metadata?.tools_called?.[0]?.name || "GPT-5.4 Brain";
 
     return res.status(200).json({
       output: outputText,
-      conversation_id: convId,
-      toolUsed
+      conversation_id: conversation.id,
+      toolUsed: toolUsed
     });
 
   } catch (error) {
