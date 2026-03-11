@@ -184,17 +184,45 @@
 
     <b:section id='main' showaddelement='yes'/>
 
-    <script>
- 
-      // CONFIGURATION
+<script>
+// CONFIGURATION
 const PROXY_ENDPOINT = &quot;https://zap-ai-1zcd.vercel.app/api/agent&quot;;
 
-// Initial Memory Check: Prevents sending &quot;null&quot; as a string
-let conversationId = localStorage.getItem(&#39;agent_conversation_id&#39;);
-if (conversationId === &quot;null&quot; || conversationId === &quot;undefined&quot; || !conversationId) {
-    conversationId = null;
+// Load memory from the browser or start fresh
+let chatHistory = JSON.parse(localStorage.getItem(&#39;agent_chat_history&#39;)) || [];
+
+// 1. HELPER FUNCTION (This was missing!)
+function appendMessage(text, type, id = null, tool = null) {
+    const chatWindow = document.getElementById(&#39;chat-window&#39;);
+    if (!chatWindow) return; // Safety check
+    
+    const msgDiv = document.createElement(&#39;div&#39;);
+    msgDiv.className = `msg ${type}`;
+    if (id) msgDiv.id = id;
+    
+    let content = text;
+    if (tool) {
+        content += `<span class='tool-tag' style='display:block; font-size:10px; color:#1a73e8; margin-top:5px; font-weight:bold;'>Used Tool: ${tool}</span>`;
+    }
+    
+    msgDiv.innerHTML = content;
+    chatWindow.appendChild(msgDiv);
+    chatWindow.scrollTop = chatWindow.scrollHeight;
 }
 
+// 2. LOAD HISTORY ON REFRESH
+document.addEventListener(&quot;DOMContentLoaded&quot;, function() {
+    chatHistory.forEach(msg =&gt; {
+        // Only show text messages (hide system instructions and raw tool data)
+        if (msg.role === &#39;user&#39;) {
+            appendMessage(msg.content, &#39;user&#39;);
+        } else if (msg.role === &#39;assistant&#39; &amp;&amp; msg.content) {
+            appendMessage(msg.content, &#39;bot&#39;);
+        }
+    });
+});
+
+// 3. MAIN SEND FUNCTION
 async function sendMessage() {
     const inputField = document.getElementById(&#39;user-input&#39;);
     const query = inputField.value.trim();
@@ -203,25 +231,26 @@ async function sendMessage() {
     appendMessage(query, &#39;user&#39;);
     inputField.value = &#39;&#39;;
 
+    // Add user message to local memory
+    chatHistory.push({ role: &quot;user&quot;, content: query });
+
     const thinkingId = &#39;think-&#39; + Date.now();
-    appendMessage(&quot;GPT-5.4 is accessing memory...&quot;, &#39;bot&#39;, thinkingId);
+    appendMessage(&quot;AI is thinking...&quot;, &#39;bot&#39;, thinkingId);
 
     try {
+        // Send the ENTIRE history to Vercel
         const response = await fetch(PROXY_ENDPOINT, {
             method: &#39;POST&#39;,
             headers: { &#39;Content-Type&#39;: &#39;application/json&#39; },
-            body: JSON.stringify({ 
-                prompt: query,
-                conversation_id: conversationId 
-            })
+            body: JSON.stringify({ messages: chatHistory })
         });
 
         const data = await response.json();
         
-        // Update Memory ID
-        if (data.conversation_id) {
-            conversationId = data.conversation_id;
-            localStorage.setItem(&#39;agent_conversation_id&#39;, conversationId);
+        // Save the AI&#39;s response to memory
+        if (data.newMessage) {
+            chatHistory.push(data.newMessage);
+            localStorage.setItem(&#39;agent_chat_history&#39;, JSON.stringify(chatHistory));
         }
 
         const thinkingElement = document.getElementById(thinkingId);
@@ -231,25 +260,34 @@ async function sendMessage() {
 
     } catch (error) {
         const thinkingElement = document.getElementById(thinkingId);
-        if (thinkingElement) thinkingElement.innerText = &quot;Error: Check Vercel logs.&quot;;
+        if (thinkingElement) thinkingElement.innerText = &quot;Error: Connection lost. Check Vercel logs.&quot;;
     }
 }
 
-function appendMessage(text, type, id = null, tool = null) {
+// 4. RESET FUNCTION
+function resetMemory() {
+    localStorage.removeItem(&#39;agent_chat_history&#39;);
+    chatHistory = [];
     const chatWindow = document.getElementById(&#39;chat-window&#39;);
-    const msgDiv = document.createElement(&#39;div&#39;);
-    msgDiv.className = `msg ${type}`;
-    if (id) msgDiv.id = id;
-    let content = text;
-    if (tool) content += `<br/><small style='color:#1a73e8'><b>Tool:</b> ${tool}</small>`;
-    msgDiv.innerHTML = content;
-    chatWindow.appendChild(msgDiv);
-    chatWindow.scrollTop = chatWindow.scrollHeight;
+    if (chatWindow) chatWindow.innerHTML = &#39;&#39;; // Clear the screen
 }
 
-document.getElementById(&#39;user-input&#39;).addEventListener(&#39;keypress&#39;, (e) =&gt; {
-    if (e.key === &#39;Enter&#39;) sendMessage();
+// 5. ENTER BUTTON FIX
+document.addEventListener(&quot;DOMContentLoaded&quot;, function() {
+    const inputField = document.getElementById(&#39;user-input&#39;);
+    
+    if (inputField) {
+        inputField.addEventListener(&#39;keypress&#39;, function (e) {
+            // Check for both &#39;Enter&#39; key and keycode 13
+            if (e.key === &#39;Enter&#39; || e.keyCode === 13) {
+                e.preventDefault(); // Stops the page from accidentally reloading
+                sendMessage();
+            }
+        });
+    } else {
+        console.error(&quot;Could not find the user-input box. Check your HTML IDs.&quot;);
+    }
 });
-    </script>
+</script>
 </body>
 </html>
